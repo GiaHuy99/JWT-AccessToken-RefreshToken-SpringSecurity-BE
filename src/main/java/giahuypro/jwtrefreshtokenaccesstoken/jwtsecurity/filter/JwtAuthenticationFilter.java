@@ -26,14 +26,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private  UserDetailsService userDetailsService;
 
 
-
+    // Bước lọc cho mỗi yêu cầu HTTP để xác thực JWT, không chặn request chỉ là xem nó có hợp lệ hay không để làm điều đó, nếu hợp lệ thì vào controller còn không thì bị chặn ở bước config và trả EX
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-
-        final String authHeader = request.getHeader("Authorization");
         String token = null;
         String username = null;
+
+        // Header này là của http request gửi lên chứa token, GET /api/users...
+        final String authHeader = request.getHeader("Authorization");
 
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             token = authHeader.substring(7);
@@ -45,6 +46,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (jwtService.validateToken(token, userDetails)) {
                 UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                         userDetails, null, userDetails.getAuthorities());
+                // gắn IP client, là IP nhà mạng hoặc IP fake không đáng tin cậy, gắn vô để bắt log và audit
                 authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authToken);
             }

@@ -27,7 +27,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 public class SecurityConfig {
     @Autowired
     private  JwtAuthenticationFilter jwtAuthFilter;
-
+    // Bước này xác thực thành công thì qua controller làm việc theo phân quyền, nếu xác thực thất bại 1 là đăng nhập lại, 2 là báo lỗi không có quyền truy cập
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http

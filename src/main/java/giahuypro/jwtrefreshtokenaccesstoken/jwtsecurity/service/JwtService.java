@@ -31,37 +31,13 @@ public class JwtService {
     @Value("${app.jwt.refresh-expiration}")
     private long refreshTokenExpiration;
 
-    public String generateAccessToken(User user) {
-        Map<String, Object> claims = new HashMap<>();
-        claims.put("userId", user.getId());
-        claims.put("roles", user.getRoles().stream().map(Role::getName).toArray());
-        return createToken(claims, user.getUsername(), accessTokenExpiration);
+    private Key getSignKey() {
+        byte[] keyBytes = Decoders.BASE64.decode(secretKey);
+        return Keys.hmacShaKeyFor(keyBytes);
     }
-
-    public String generateRefreshToken(User user) {
-        return createToken(new HashMap<>(), user.getUsername(), refreshTokenExpiration);
-    }
-
-    private String createToken(Map<String, Object> claims, String subject, long expiration) {
-        return Jwts.builder()
-                .setClaims(claims)
-                .setSubject(subject)
-                .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + expiration))
-                .signWith(getSignKey(), SignatureAlgorithm.HS256)
-                .compact();
-    }
-
+    // Các chức năng xử lý JWT và kiểm tra tính hợp lệ của token
     // Các hàm để trích xuất thông tin từ token và xác thực token
-    public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
-        final Claims claims = extractAllClaims(token);
-        return claimsResolver.apply(claims);
-    }
-
-    public String extractUsername(String token) {
-        return extractClaim(token, Claims::getSubject);
-    }
-
+    //1. function lấy thông tin  claims từ token
     public Claims extractAllClaims(String token) {
         return Jwts
                 .parserBuilder()
@@ -70,22 +46,50 @@ public class JwtService {
                 .parseClaimsJws(token)
                 .getBody();
     }
+    //2. hàm này 1 công cụ: để lấy 1 thông tin cụ thể từ claims
+    public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
+        final Claims claims = extractAllClaims(token);
+        return claimsResolver.apply(claims);
+    }
+    //3. hàm lấy username từ token
+    public String extractUsername(String token) {
+        return extractClaim(token, Claims::getSubject);
+    }
 
+    //  4.1 hàm lấy thời gian hết hạn từ token
+    private Date extractExpiration(String token) {
+        return extractClaim(token, Claims::getExpiration);
+    }
+    //  4.2 Các hàm này sử dụng các chức năng trích xuất làm ở trên để kiểm tra token có hợp lệ hay không
+    // before == < , after == >
+    private Boolean isTokenExpired(String token) {
+        return extractExpiration(token).before(new Date());
+    }
+    //4.3
     public Boolean validateToken(String token, UserDetails userDetails) {
         final String username = extractUsername(token);
         return (username.equals(userDetails.getUsername()) && !isTokenExpired(token));
     }
-
-    private Boolean isTokenExpired(String token) {
-        return extractExpiration(token).before(new Date());
+    // Các hàm để tạo token
+//  hàm để tạo token  lấy input từ  hàm generateAccessToken trong service
+    private String createToken(Map<String, Object> claims, String subject, long expiration) {
+        return
+                Jwts.builder() // Tạo bộ khung JWT
+                .setClaims(claims) // gắn thông tin claims
+                .setSubject(subject) // gắn username(email ...)
+                .setIssuedAt(new Date(System.currentTimeMillis())) // gắn thời gian tạo token
+                .setExpiration(new Date(System.currentTimeMillis() + expiration)) // gắn thời gian hết hạn
+                .signWith(getSignKey(), SignatureAlgorithm.HS256)// ký token bằng thuật toán HS256 và key bí mật
+                .compact(); // tạo chuỗi token hoàn chỉnh => đó chính là Accesstoken
+    }
+    // hàm này tạo access token bằng cách thiết lập claims cung cấp username(email ...) và thời gian hết hạn
+    public String generateAccessToken(User user) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("userId", user.getId());
+//        claims.put("username", user.getUsername());
+        claims.put("roles", user.getRoles().stream().map(Role::getName).toArray());
+        return createToken(claims, user.getUsername(), accessTokenExpiration);
     }
 
-    private Date extractExpiration(String token) {
-        return extractClaim(token, Claims::getExpiration);
-    }
 
-    private Key getSignKey() {
-        byte[] keyBytes = Decoders.BASE64.decode(secretKey);
-        return Keys.hmacShaKeyFor(keyBytes);
-    }
 }
